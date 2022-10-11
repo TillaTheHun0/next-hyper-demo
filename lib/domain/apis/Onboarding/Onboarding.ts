@@ -31,7 +31,7 @@ export class Onboarding {
       create(userDocSchema)
     )(data)
 
-    await Promise.all([])
+    await Promise.all([hyper.data.add(doc), hyper.cache.remove('color-tally')])
 
     // Map persistence model to service model
     return userSchema.parse(doc)
@@ -42,7 +42,7 @@ export class Onboarding {
       clients: { hyper }
     } = this.context
 
-    const res = { ok: true, msg: '', docs: [] }
+    const res = await hyper.data.query({ type: 'user' })
 
     if (!res.ok) throw new GenericError(res.msg)
 
@@ -57,6 +57,13 @@ export class Onboarding {
     // MISS - Calculate and cache
     console.log('MISS - Calculating color tally...')
 
+    const res = await hyper.cache.get('color-tally')
+
+    if (res.status !== 404) {
+      console.log('HIT')
+      return res
+    }
+
     const users = await this.getUsers()
 
     const groups = groupBy(prop('favoriteColor'), users)
@@ -64,6 +71,8 @@ export class Onboarding {
       (acc, color) => ({ ...acc, [color]: groups[color as keyof typeof groups].length }),
       {}
     )
+
+    await hyper.cache.set('color-tally', computed, '10m')
 
     return computed
   }
