@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "run-p dev:*",
     "dev:next": "next dev",
-    "dev:hyper": "npx hyper-nano --domain=next-clean-architecture --experimental --purge --data --cache",
+    "dev:hyper": "npx hyper-nano --domain=next-clean-architecture --experimental --data --cache",
     "format": "prettier --write .",
     "lint": "next lint",
     "prepare": "husky install",
