@@ -22,18 +22,6 @@ export class UserNotFoundError extends Error implements TypedError {
   }
 }
 
-export class UserAlreadyExistsError extends Error implements TypedError {
-  public status = 409
-  public type = 'UserAlreadyExists'
-  public static type = 'UserAlreadyExists'
-  public static description =
-    'An error type that indicates the user already exists, which usually indicates a User with a certain email already exists'
-  constructor(message?: string) {
-    super(message)
-    this.message = this.message || 'User Already Exists'
-  }
-}
-
 export class GenericError extends Error implements TypedError {
   public status = 500
   public type = 'GenericError'

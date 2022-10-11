@@ -25,20 +25,13 @@ export const docSchema = z
     _id: idSchema,
     type: typeSchema,
     createdAt: dateSchema,
-    updatedAt: dateSchema,
-    // Whether the document is a seed document or not.
-    isSeed: z.boolean().optional()
+    updatedAt: dateSchema
   })
   .passthrough()
 export type Doc = z.infer<typeof docSchema>
 
 // Setters
 export const addType = (type: Type) => assoc('type', type)
-export const addUnderscoreId = (doc: Record<string, unknown>) => assoc('_id', cuid(), doc)
-export const addCreatedBy = (by: string) => (doc: Record<string, unknown>) =>
-  assoc('createdBy', by)(doc)
-export const addUpdatedBy = (by: string) => (doc: Record<string, unknown>) =>
-  assoc('updatedBy', by)(doc)
 
 // To and From DB Utilities
 
@@ -85,7 +78,7 @@ export const create = <ds extends ZodSchema>(schema: ds): ((o: any) => z.infer<d
   compose(
     toDb.as(schema),
     (model) => assoc('createdAt', model.createdAt || new Date(), model),
-    (model: Record<string, unknown>) => (model._id ? model : addUnderscoreId(model))
+    (model: Record<string, unknown>) => (model._id ? model : assoc('_id', cuid(), model))
   )
 
 /**

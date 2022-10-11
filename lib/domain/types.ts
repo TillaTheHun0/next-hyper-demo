@@ -1,7 +1,6 @@
 import { createApis } from './apis'
 import { createClients } from './clients'
 import type { DomainConfig } from './config'
-import { createDataloaders } from './dataloaders'
 
 export type DomainContext = {
   config: DomainConfig
@@ -12,5 +11,4 @@ export type DomainContext = {
    * dependencies in each business api easier.
    */
   clients: ReturnType<typeof createClients>
-  dataloaders: ReturnType<typeof createDataloaders>
 }

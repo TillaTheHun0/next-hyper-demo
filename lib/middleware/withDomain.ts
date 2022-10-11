@@ -11,7 +11,6 @@ import { config, EnvironmentConfig } from '../config'
 import { createApis } from '../domain/apis'
 import { createClients } from '../domain/clients'
 import { domainConfig } from '../domain/config'
-import { createDataloaders } from '../domain/dataloaders'
 import type { DomainContext } from '../domain/types'
 
 /**
@@ -33,8 +32,6 @@ function bootstrap(config: EnvironmentConfig): DomainContext {
    */
   const sideEffects: any = {}
   sideEffects.clients = createClients({ hyper: config.hyper })
-  // dataloaders may reference to each other and clients, but not apis
-  sideEffects.dataloaders = createDataloaders(sideEffects)
 
   /**
    * Now side-effects are bootstrapped. Now inject side effects into business logic
@@ -42,7 +39,7 @@ function bootstrap(config: EnvironmentConfig): DomainContext {
 
   const domain = { ...sideEffects }
   // Pull values off of environment config to produce the configuration for the domain
-  domain.config = domainConfig.parse({})
+  domain.config = domainConfig.parse(config)
   // apis may reference each other, domain config, dataloaders, and clients
   domain.apis = createApis(domain)
   return domain as DomainContext

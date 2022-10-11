@@ -1,21 +1,13 @@
-import { pipe } from 'ramda'
+import { groupBy, pipe, prop } from 'ramda'
 import z from 'zod'
 
-import { addCreatedBy, addType, addUpdatedBy, create, typeSchema } from '../../models/doc'
-import { GenericError, UserAlreadyExistsError } from '../../models/err'
-import {
-  actorSchema,
-  newUserSchema,
-  User,
-  UserDoc,
-  userDocSchema,
-  userSchema
-} from '../../models/user'
+import { addType, create, typeSchema } from '../../models/doc'
+import { GenericError } from '../../models/err'
+import { User, userDocSchema, userSchema } from '../../models/user'
 import { DomainContext } from '../../types'
 
 const onboardUserSchema = z.object({
-  data: newUserSchema,
-  by: actorSchema
+  data: userSchema.pick({ name: true, email: true, favoriteColor: true, avatarUrl: true })
 })
 
 export class Onboarding {
@@ -25,41 +17,69 @@ export class Onboarding {
    * Every api has an input schema, for compile time validation and runtime validation
    * via zod
    */
-  async onboardUser(input: z.infer<typeof onboardUserSchema>): Promise<User> {
+  async addUser(input: z.infer<typeof onboardUserSchema>): Promise<User> {
     const {
       clients: { hyper }
     } = this.context
 
-    const { data, by } = onboardUserSchema.parse(input)
-
-    const query = await hyper.data.query<UserDoc>({ type: typeSchema.Enum.user, email: data.email })
-
-    if (!query.ok) {
-      throw new GenericError(query.msg)
-    }
-
-    const [exists] = query.docs
-
-    if (exists) {
-      throw new UserAlreadyExistsError(`user with email ${data.email} already exists`)
-    }
+    const { data } = onboardUserSchema.parse(input)
 
     // use our domain models to parse a document
     const doc = pipe(
-      addCreatedBy(by._id),
-      addUpdatedBy(by._id),
       addType('user'),
       // Map service model to persistence model
       create(userDocSchema)
     )(data)
 
-    // create the document in hyper
-    const add = await hyper.data.add(doc)
-    if (!add.ok) {
-      throw new GenericError(add.msg)
-    }
+    await Promise.all([
+      hyper.data.add(doc),
+      hyper.cache.remove('color-tally').catch((res) => {
+        if (res.status === 404) return
+        throw res
+      })
+    ])
 
     // Map persistence model to service model
     return userSchema.parse(doc)
+  }
+
+  async getUsers(): Promise<User[]> {
+    const {
+      clients: { hyper }
+    } = this.context
+
+    const res = await hyper.data.query({ type: typeSchema.Enum.user })
+
+    if (!res.ok) throw new GenericError(res.msg)
+
+    return res.docs.map((d) => userSchema.parse(d))
+  }
+
+  async colorTally() {
+    const {
+      clients: { hyper }
+    } = this.context
+
+    const res = await hyper.cache.query('color-tally')
+    if (!res.ok) throw new GenericError(res.msg)
+
+    // HIT
+    if (res.docs.length) {
+      console.log('HIT - color tally')
+      return res.docs[0].value
+    }
+
+    // MISS - Calculate and cache
+    console.log('MISS - Calculating color tally...')
+
+    const users = await this.getUsers()
+
+    const groups = groupBy(prop('favoriteColor'), users)
+    const computed = Object.keys(groups).reduce(
+      (acc, color) => ({ ...acc, [color]: groups[color as keyof typeof groups].length }),
+      {}
+    )
+    await hyper.cache.set('color-tally', computed, '10m')
+    return computed
   }
 }
