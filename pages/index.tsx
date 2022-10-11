@@ -1,79 +1,118 @@
+/* eslint-disable @next/next/no-img-element */
 import type { NextPage } from 'next'
 import Head from 'next/head'
 import Image from 'next/image'
+import { useState } from 'react'
+import toast from 'react-hot-toast'
+
+import type { User } from '../lib/domain/models/user'
 import { withMiddlewareSsr } from '../lib/middleware'
 
-/**
- * Console.log to demonstrate domain is available on getServerSideProps
- */
 export const getServerSideProps = withMiddlewareSsr(async (context) => {
-  console.log(context.req.domain)
-  console.log(context.req.config)
+  const {
+    req: {
+      domain: {
+        apis: { Onboarding }
+      }
+    }
+  } = context
 
-  return { props: {} }
+  const [users, tally] = await Promise.all([Onboarding.getUsers(), Onboarding.colorTally()])
+
+  return { props: { users: JSON.parse(JSON.stringify(users)), tally } }
 })
 
-const Home: NextPage = () => {
+const Home: NextPage<{ users: User[]; tally: Record<string, number> }> = ({
+  users: data,
+  tally: initialTally
+}) => {
+  const [users, setUsers] = useState(data)
+  const [tally, setTally] = useState(initialTally)
+
+  async function addUser() {
+    return toast
+      .promise(fetch('/api/users', { method: 'POST' }), {
+        loading: 'Adding...',
+        success: 'Success!',
+        error: 'Error adding user'
+      })
+      .then((res) => res.json())
+      .then((user) => setUsers([...users, user]))
+      .then(() => getTally())
+  }
+
+  async function getTally() {
+    return toast
+      .promise(fetch('/api/colors'), {
+        loading: 'Refetching Tally...',
+        success: 'Success!',
+        error: 'Error fetching tally'
+      })
+      .then((res) => res.json())
+      .then((tally) => setTally(tally))
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center py-2">
       <Head>
-        <title>Create Next App</title>
+        <title>Hyper Next</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className="flex w-full flex-1 flex-col items-center justify-center px-20 text-center">
-        <h1 className="text-6xl font-bold">
-          Welcome to{' '}
-          <a className="text-blue-600" href="https://nextjs.org">
-            Next.js!
-          </a>
-        </h1>
+      <main className="flex w-full flex-1 flex-col bg-gray-200 px-4 pb-4">
+        <div className="navbar mt-4 items-center justify-between space-x-4 bg-gray-200">
+          <div className="flex-none">
+            <h3>Users</h3>
+          </div>
 
-        <p className="mt-3 text-2xl">
-          Get started by editing{' '}
-          <code className="rounded-md bg-gray-100 p-3 font-mono text-lg">pages/index.tsx</code>
-        </p>
+          <div className="stats shadow">
+            {Object.keys(tally).map((t) => (
+              <div className="stat" key={t}>
+                <div className="stat-title">{t}</div>
+                <div className="stat-value">{tally[t]}</div>
+              </div>
+            ))}
+          </div>
 
-        <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-around sm:w-full">
-          <a
-            href="https://nextjs.org/docs"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Documentation &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Find in-depth information about Next.js features and its API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Learn &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Learn about Next.js in an interactive course with quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Examples &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Discover and deploy boilerplate example Next.js projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Deploy &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+          <div className="mt-2 w-full md:w-40">
+            <button className="btn btn-primary" onClick={addUser}>
+              Add User
+            </button>
+          </div>
+        </div>
+        <div className="divider" />
+        <div className="overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Favorite Color</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user, i) => (
+                <tr key={user.email}>
+                  <th>{i}</th>
+                  <td>
+                    <div className="flex items-center space-x-3">
+                      <div className="avatar">
+                        <div className="mask mask-squircle h-12 w-12">
+                          <img src={user.avatarUrl} alt="Avatar" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-bold">{user.name}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{user.name}</td>
+                  <td>{user.favoriteColor}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </main>
 
